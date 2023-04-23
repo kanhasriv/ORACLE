@@ -1,0 +1,99 @@
+[Friday 14:57] Srivastava, Kanha
+
+import sys
+import boto3
+import uuid
+import time
+import json
+from awsglue.transforms import *
+from awsglue.utils import getResolvedOptions
+from pyspark.context import SparkContext
+from awsglue.context import GlueContext
+from awsglue.job import Job
+
+
+
+print("START")
+
+
+
+# Reading job register args
+args = getResolvedOptions(sys.argv, ['JOB_NAME','oracle_hostname','link_service_id', 'oracle_port','bucket_name', 's3_region_name','oracle_driver_name', 'db_name','tb_name','date','time','sid'])
+
+
+
+# Initializing spark and glue context
+sparkContext = SparkContext()
+glueContext = GlueContext(sparkContext)
+sparkSession = glueContext.spark_session
+
+
+
+print(f'Spark Application ID = {sparkSession.sparkContext.applicationId}')
+
+
+
+# Reading job run args
+glueJob = Job(glueContext)
+glueJob.init(args['JOB_NAME'], args)
+
+
+
+# Formatting the input args
+oracle_hostname=args["oracle_hostname"].strip()
+oracle_port=args["oracle_port"].strip()
+oracle_driver_name=args["oracle_driver_name"].strip()
+sid=args['sid'].strip()
+db_name = args['db_name'].strip()
+table_name = args['tb_name'].strip()
+query = args['query'].strip()
+load_date = args['load_date'].strip()
+load_time = args['load_time'].strip()
+bucket_name = args['bucket_name']
+
+
+
+
+username = "C#DEMO_USER"
+password = "pass123"
+
+
+
+
+# Default Path where the file will be stored in S3
+dest_key = f"s3://{bucket_name}/landed_redshift/oracle/{db_name}/{table_name}/load_date={load_date}/load_time={load_time}/"
+
+
+
+# Connection to the saource
+db_url = "jdbc:oracle:thin:@{}:{}:{}".format(oracle_hostname, oracle_port,sid)
+source_df = sparkSession.read.format("jdbc").option("driver", oracle_driver_name). \
+    option("url", db_url).option("dbtable", f'({query}) src').option("user", username). \
+    option("password", password).load()
+
+
+
+datasource = DynamicFrame.fromDF(source_df, glueContext, "dynamic_df")
+
+
+
+dynamic_dframe = DynamicFrame.fromDF(source_df, glueContext, "dynamic_df")
+
+
+
+s3_path = "s3://" + bucket_name + "/"+"landed_redshift"+"/"+db_name+"/"+table_name+"/"+"load_date="+date+"/"+"load_time="+timestamp
+
+
+
+
+datasink0 = glueContext.write_dynamic_frame.from_options(frame=datasource,
+                                                        connection_type="s3",
+                                                        connection_options={
+                                                        "path": s3_path},
+                                                        format="parquet",
+                                                        transformation_ctx="datasink0")
+
+
+
+print("END")
+glueJob.commit()
