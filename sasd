@@ -1,0 +1,1 @@
+ssh -i idea-demo-main-key.pem -L 27017:idea-demo-main-docdb.cluster-ciiky6du2jjt.us-east-1.docdb.amazonaws.com:27017 ec2-user@34.236.42.155 -N
