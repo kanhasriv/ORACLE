@@ -1,0 +1,59 @@
+import sys
+import boto3
+import snowflake.connector
+from awsglue.utils import getResolvedOptions
+
+ 
+
+# Reading the arguments passed
+args = getResolvedOptions(sys.argv, ['account', 'warehouse','link_service_id','copy_cmd','idea_db','region_name','load_type','schema','table'])
+
+ 
+
+session = boto3.session.Session()
+sm_client = session.client(
+    service_name='secretsmanager',
+    region_name=args['region_name'].strip())
+
+ 
+
+
+link_service_id = args['link_service_id'].strip()
+user = sm_client.get_secret_value(SecretId= link_service_id + "-username")["SecretString"]
+password = sm_client.get_secret_value(SecretId= link_service_id + "-password")["SecretString"]
+# Connecting to Snowflake
+conn = snowflake.connector.connect(
+            user=user,
+            password=password,
+            account=args["account"],
+            warehouse=args["warehouse"]
+        )
+cur = conn.cursor()
+
+ 
+
+# Selecting idea_database
+use_cmd = 'USE {idea_db}.{schema}'.format(idea_db = args['idea_db'],schema = args['schema'])
+cur.execute(use_cmd)
+
+ 
+
+ 
+
+# # Truncating the table if it is a full load
+# if args['load_type'] == 'FullLoad':
+#     pre_copy_script = "Truncate table {schema_name}.{schema_name}.{table_name}".format(schema_name=args['schema'].upper(),
+#                                         table_name=args["table"].upper())
+#     cur.execute(pre_copy_script)
+#     conn.commit()
+
+ 
+
+# Executing the Copy command
+
+ 
+
+copy_cmd = args['copy_cmd']
+cur.execute(copy_cmd)
+conn.commit()
+conn.close()
